@@ -34,7 +34,7 @@ LABEL_H = 40.0
 GAP = 2.0               # waste strip between labels (cut through it)
 SEAM = 4.0              # nothing printed within this distance of the cut edge (sewing allowance)
 MARGIN_Y = 12.0         # top / bottom margin of the sheet (crop marks, slug line)
-QR_SIZE = 20.0          # QR symbol size; module size follows from the QR version (v1 = 21 modules -> 0.95 mm)
+QR_SIZE = 18.0          # QR symbol size; module size follows from the QR version (v1 = 21 modules -> 0.86 mm)
 
 HEADER_TEXT = "حرم مطهر شاهچراغ"
 ID_PREFIX = "CH-"
@@ -42,7 +42,7 @@ ID_DIGITS = 6
 
 # vertical plan inside the sewing-safe area (mm from its top edge)
 HEADER_BAND = (0.0, 4.0)
-QR_TOP = 6.0
+QR_TOP = 7.0
 ID_BASELINE = 31.0
 ID_FONT_MM = 3.8
 

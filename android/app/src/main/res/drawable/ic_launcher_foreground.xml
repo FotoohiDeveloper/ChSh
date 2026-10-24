@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- a simple tent -->
+    <path android:fillColor="#FFFFFF" android:pathData="M54,30 L82,74 L26,74 Z" />
+    <path android:fillColor="#14532D" android:pathData="M54,50 L64,74 L44,74 Z" />
+</vector>

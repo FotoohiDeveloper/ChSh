@@ -110,10 +110,11 @@ else
   echo "admin user already exists (or creation failed):"; tail -2 /tmp/chador-admin.out
 fi
 rm -f /tmp/chador-admin.out
-if [ -n "${GATES:-}" ]; then docker compose run --rm api seed-places --gates "$GATES" || warn "seed-places skipped (places may already exist)"; fi
+# gates + storage room + workshop; the tent import below needs them. Gate names can be changed later in the admin screen.
+docker compose run --rm api seed-places ${GATES:+--gates "$GATES"} || warn "seed-places skipped (places may already exist)"
 CSV="$INSTALL_DIR/labels/output/tent_ids.csv"
 if [ "$IMPORT_TENTS" = "1" ] && [ -f "$CSV" ]; then
-  docker compose run --rm -v "$(dirname "$CSV"):/in:ro" api import-tents --file /in/tent_ids.csv
+  docker compose run --rm -v "$(dirname "$CSV"):/in:ro" api import-tents --file /in/tent_ids.csv || warn "tent import failed; run it again later"
 fi
 
 cat <<MSG

@@ -1,0 +1,7 @@
+/bin/
+deploy/secrets/
+deploy/backups/
+deploy/.env
+deploy/pwa/
+*.test
+*.out

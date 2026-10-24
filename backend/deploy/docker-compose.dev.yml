@@ -1,0 +1,13 @@
+# Dependencies only, bound to localhost. Run the API on the host:  make dev
+name: chador-dev
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment: { POSTGRES_USER: chador, POSTGRES_PASSWORD: chador, POSTGRES_DB: chador }
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdev:/var/lib/postgresql/data]
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    ports: ["127.0.0.1:6379:6379"]
+volumes:
+  pgdev: {}

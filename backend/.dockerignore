@@ -1,0 +1,6 @@
+.git
+deploy/secrets
+deploy/backups
+deploy/.env
+*.test
+docs

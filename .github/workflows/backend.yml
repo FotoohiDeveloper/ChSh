@@ -1,0 +1,67 @@
+name: backend
+
+on:
+  push:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: chador, POSTGRES_PASSWORD: chador, POSTGRES_DB: chador_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U chador" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://chador:chador@localhost:5432/chador_test?sslmode=disable
+      TEST_REDIS_URL: redis://localhost:6379/9
+      TEST_ALLOW_RESET: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - name: tests (race detector)
+        run: go test ./... -race -count=1
+      - name: tests as the unprivileged runtime role
+        run: |
+          PGPASSWORD=chador psql -h localhost -U chador -d chador_test -c "CREATE ROLE chador_app LOGIN PASSWORD 'app'"
+          TEST_APP_ROLE=chador_app TEST_APP_DATABASE_URL='postgres://chador_app:app@localhost:5432/chador_test?sslmode=disable' \
+            go test ./internal/service ./internal/api -race -count=1
+      - name: known vulnerabilities in dependencies and standard library
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: compose files are valid
+        working-directory: backend/deploy
+        run: |
+          ./init-secrets.sh >/dev/null
+          SITE_ADDRESS=ci.example docker compose config -q
+          docker compose -f docker-compose.dev.yml config -q
+      - name: build the image
+        run: docker build -t chador:ci backend
+      - name: container runs as non-root and answers the CLI
+        run: |
+          test "$(docker run --rm --entrypoint /usr/local/bin/chador chador:ci healthcheck >/dev/null 2>&1; echo $?)" = 1   # no server running: unhealthy, but the binary starts
+          docker image inspect chador:ci --format '{{.Config.User}}' | grep -q nonroot

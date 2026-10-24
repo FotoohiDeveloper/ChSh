@@ -1,0 +1,47 @@
+{
+	email {$ACME_EMAIL}
+	# Caddy is the only component that talks to the internet. It rewrites
+	# X-Forwarded-For with the real client address, so the API can trust it.
+}
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		# camera is needed for QR scanning; everything else is off
+		Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+		-Server
+	}
+
+	@api path /api/* /healthz /readyz
+	handle @api {
+		# Optional: only let the admin API be reached from the office network.
+		# @admin_outside {
+		#     path /api/v1/admin/*
+		#     not remote_ip 192.168.0.0/16 10.0.0.0/8
+		# }
+		# respond @admin_outside 403
+
+		reverse_proxy api:8080 {
+			header_up X-Forwarded-For {remote_host}
+			flush_interval -1 # server-sent events must not be buffered
+			transport http {
+				response_header_timeout 15s
+			}
+		}
+	}
+
+	# The PWA (static files built by the front-end team) is mounted at /srv/pwa.
+	handle {
+		root * /srv/pwa
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+		header Cache-Control "no-cache"
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

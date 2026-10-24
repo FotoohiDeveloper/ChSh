@@ -1,0 +1,182 @@
+# Production stack. Run deploy/init-secrets.sh first, copy .env.example to .env.
+#
+#   edge   : the only network with published ports (Caddy)
+#   app    : Caddy <-> API (no outside access)
+#   data   : API/worker <-> Postgres/Redis (no outside access at all)
+#   egress : API/worker -> identity-inquiry and SMS vendors (outbound only)
+name: chador
+
+x-hardened: &hardened
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+x-app-env: &app-env
+  APP_ENV: prod
+  APP_TZ: Asia/Tehran
+  HTTP_ADDR: ":8080"
+  TRUST_PROXY: "true" # safe: the API is only reachable through Caddy
+  AUTO_MIGRATE: "false"
+  APP_DB_ROLE: chador_app
+  DATABASE_URL_FILE: /run/secrets/database_url
+  MIGRATE_DATABASE_URL_FILE: /run/secrets/migrate_database_url
+  REDIS_URL_FILE: /run/secrets/redis_url
+  PII_ENC_KEY_FILE: /run/secrets/pii_enc_key
+  PII_IDX_KEY_FILE: /run/secrets/pii_idx_key
+  INQUIRY_TOKEN_FILE: /run/secrets/inquiry_token
+  SMS_TOKEN_FILE: /run/secrets/sms_token
+  INQUIRY_MODE: ${INQUIRY_MODE:-http}
+  INQUIRY_URL: ${INQUIRY_URL:-}
+  SMS_MODE: ${SMS_MODE:-http}
+  SMS_URL: ${SMS_URL:-}
+  ALLOW_UNVERIFIED: ${ALLOW_UNVERIFIED:-false}
+  ACCESS_TTL: ${ACCESS_TTL:-15m}
+  REFRESH_TTL: ${REFRESH_TTL:-12h}
+  UNDO_WINDOW: ${UNDO_WINDOW:-3m}
+  REMINDER_AFTER: ${REMINDER_AFTER:-6h}
+  MAX_REMINDERS: ${MAX_REMINDERS:-2}
+  RETENTION_DAYS: ${RETENTION_DAYS:-90}
+
+x-app: &app
+  <<: *hardened
+  build:
+    context: ..
+    args:
+      GO_IMAGE: ${GO_IMAGE:-golang:1.26-alpine}
+      RUNTIME_IMAGE: ${RUNTIME_IMAGE:-gcr.io/distroless/static-debian12:nonroot}
+  image: chador:${VERSION:-local}
+  read_only: true
+  environment: *app-env
+  secrets: [database_url, migrate_database_url, redis_url, pii_enc_key, pii_idx_key, inquiry_token, sms_token]
+
+services:
+  caddy:
+    <<: *hardened
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    cap_add: ["NET_BIND_SERVICE"]
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${PWA_DIR:-./pwa}:/srv/pwa:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge, app]
+    depends_on:
+      api: { condition: service_healthy }
+
+  api:
+    <<: *app
+    command: ["serve"]
+    environment:
+      <<: *app-env
+      METRICS_ADDR: ":9090" # internal only: not published, not proxied
+    networks: [app, data, egress]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 512M, cpus: "2.0" }
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    networks: [data, egress]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { memory: 256M, cpus: "1.0" }
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["migrate"]
+    networks: [data]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    <<: *hardened
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    # postgres needs a few capabilities to drop privileges after init
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: chador_owner
+      POSTGRES_DB: chador
+      POSTGRES_PASSWORD_FILE: /run/secrets/owner_db_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
+    command:
+      - postgres
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - max_connections=60
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - log_connections=on
+      - -c
+      - idle_in_transaction_session_timeout=15000
+    secrets: [owner_db_password, app_db_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chador_owner -d chador"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits: { memory: 1G }
+
+  redis:
+    <<: *hardened
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    # appendonly keeps queued SMS jobs and sessions across restarts
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /run/secrets/redis_password)\" --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy noeviction --save ''"]
+    secrets: [redis_password]
+    volumes: [redisdata:/data]
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /run/secrets/redis_password)\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+networks:
+  edge: {}
+  app: { internal: true }
+  data: { internal: true }
+  egress: {}
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  caddy_data: {}
+  caddy_config: {}
+
+secrets:
+  owner_db_password: { file: ./secrets/owner_db_password }
+  app_db_password: { file: ./secrets/app_db_password }
+  redis_password: { file: ./secrets/redis_password }
+  database_url: { file: ./secrets/database_url }
+  migrate_database_url: { file: ./secrets/migrate_database_url }
+  redis_url: { file: ./secrets/redis_url }
+  pii_enc_key: { file: ./secrets/pii_enc_key }
+  pii_idx_key: { file: ./secrets/pii_idx_key }
+  inquiry_token: { file: ./secrets/inquiry_token }
+  sms_token: { file: ./secrets/sms_token }

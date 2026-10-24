@@ -66,6 +66,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/places", s.h(s.places))
 			r.Post("/shifts/start", s.h(s.shiftStart))
 			r.Post("/shifts/end", s.h(s.shiftEnd))
+			r.Get("/shifts/colleagues", s.h(s.colleagues))
 
 			r.Post("/pilgrims", s.h(s.pilgrimUpsert))
 			r.Post("/pilgrims/lookup", s.h(s.pilgrimLookup)) // POST so national IDs never appear in URLs/logs
@@ -207,6 +208,11 @@ func (s *Server) shiftStart(w http.ResponseWriter, r *http.Request, a service.Ac
 
 func (s *Server) shiftEnd(w http.ResponseWriter, r *http.Request, a service.Actor) (any, int, error) {
 	return nil, http.StatusNoContent, s.svc.EndShift(r.Context(), a)
+}
+
+func (s *Server) colleagues(w http.ResponseWriter, r *http.Request, a service.Actor) (any, int, error) {
+	v, err := s.svc.Colleagues(r.Context(), a)
+	return map[string]any{"colleagues": v}, 200, err
 }
 
 // ---- pilgrims ----

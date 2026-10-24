@@ -188,6 +188,40 @@ func (s *Service) Socks(ctx context.Context, a Actor, req SocksReq) (SocksRes, b
 
 // ---- shift handover ----
 
+type ColleagueView struct {
+	ID       uuid.UUID   `json:"id"`
+	FullName string      `json:"full_name"`
+	Role     domain.Role `json:"role"`
+}
+
+// Colleagues lists the other people currently on shift at the caller's place.
+// It exists so a gate lead can pick who receives a handover without needing
+// access to the user directory.
+func (s *Service) Colleagues(ctx context.Context, a Actor) ([]ColleagueView, error) {
+	if err := a.require(domain.PermHandover); err != nil {
+		return nil, err
+	}
+	if err := a.requireShift(); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, `SELECT u.id, u.full_name, u.role FROM shifts sh JOIN users u ON u.id = sh.user_id
+		WHERE sh.place_id=$1 AND sh.ended_at IS NULL AND u.active AND u.id <> $2 AND u.role IN ('gate_lead','server')
+		ORDER BY u.full_name`, *a.PlaceID, a.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ColleagueView{}
+	for rows.Next() {
+		var c ColleagueView
+		if err := rows.Scan(&c.ID, &c.FullName, &c.Role); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 type HandoverReq struct {
 	ToUser uuid.UUID `json:"to_user"`
 	Notes  string    `json:"notes"`

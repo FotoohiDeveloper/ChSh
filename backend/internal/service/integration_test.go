@@ -627,3 +627,18 @@ func TestRuntimeRoleCannotTamper(t *testing.T) {
 		t.Fatalf("runtime role must be able to append to the audit log: %v", err)
 	}
 }
+
+func TestColleaguesForHandover(t *testing.T) {
+	e := testenv.New(t)
+	lead := e.User(t, "lead", domain.GateLead, e.Gate, &e.Door)
+	srv := e.User(t, "srv", domain.Server, e.Gate, &e.Door)
+	e.User(t, "elsewhere", domain.Server, e.Gate2, nil)
+	e.User(t, "washer", domain.Workshop, e.Wash, nil)
+	got, err := e.Svc.Colleagues(ctx, lead)
+	if err != nil || len(got) != 1 || got[0].ID != srv.UserID {
+		t.Fatalf("lead should see only the server on the same gate: %v %v", got, err)
+	}
+	if _, err := e.Svc.Colleagues(ctx, srv); err == nil {
+		t.Fatal("a plain server has no use for the colleague list")
+	}
+}

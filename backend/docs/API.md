@@ -66,6 +66,7 @@ Tent statuses: `ready`, `with_pilgrim`, `dirty`, `in_wash`, `pending_review`, `r
 | | |
 |---|---|
 | `POST /socks` `{kind: supply\|issue\|return, qty, place_id?, pilgrim_id?, op_id?}` | `supply` = office → gate; `issue` = gate → pilgrim; `return` = leftover back. Never goes negative. (Socks sold together with tents: use `socks_qty` in `/assignments`.) |
+| `GET /shifts/colleagues` | gate lead: other lead/server users on shift at the same place (to choose a handover receiver) |
 | `POST /handovers` `{to_user, notes?}` | snapshot of the place (tents by status, socks balance, tents out) |
 | `GET /handovers` · `POST /handovers/{id}/resolve` `{accept}` | only the receiver can resolve |
 

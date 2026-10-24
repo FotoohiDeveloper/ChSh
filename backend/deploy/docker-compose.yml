@@ -46,7 +46,7 @@ x-app: &app
     context: ..
     args:
       GO_IMAGE: ${GO_IMAGE:-golang:1.26-alpine}
-      RUNTIME_IMAGE: ${RUNTIME_IMAGE:-gcr.io/distroless/static-debian12:nonroot}
+      RUNTIME_IMAGE: ${RUNTIME_IMAGE:-scratch}
   image: chador:${VERSION:-local}
   read_only: true
   environment: *app-env

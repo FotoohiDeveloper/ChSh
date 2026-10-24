@@ -147,8 +147,9 @@ services:
   redis:
     <<: *hardened
     image: ${REDIS_IMAGE:-redis:7-alpine}
-    # the image entrypoint chowns /data and drops to the redis user, which needs these three
-    cap_add: ["CHOWN", "SETUID", "SETGID"]
+    # run as the image's own redis user (uid 999) from the start: /data is owned by it, and with all
+    # capabilities dropped root could not write there (no DAC_OVERRIDE)
+    user: "999:999"
     # appendonly keeps queued SMS jobs and sessions across restarts
     command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /run/secrets/redis_password)\" --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy noeviction --save ''"]
     secrets: [redis_password]

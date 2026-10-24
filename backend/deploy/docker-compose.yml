@@ -102,6 +102,7 @@ services:
     networks: [data]
     depends_on:
       postgres: { condition: service_healthy }
+      redis: { condition: service_healthy } # the shared start-up code connects to Redis even for migrations
 
   postgres:
     <<: *hardened
@@ -146,6 +147,8 @@ services:
   redis:
     <<: *hardened
     image: ${REDIS_IMAGE:-redis:7-alpine}
+    # the image entrypoint chowns /data and drops to the redis user, which needs these three
+    cap_add: ["CHOWN", "SETUID", "SETGID"]
     # appendonly keeps queued SMS jobs and sessions across restarts
     command: ["sh", "-c", "exec redis-server --requirepass \"$$(cat /run/secrets/redis_password)\" --appendonly yes --appendfsync everysec --maxmemory 256mb --maxmemory-policy noeviction --save ''"]
     secrets: [redis_password]

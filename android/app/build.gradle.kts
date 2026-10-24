@@ -14,20 +14,22 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-        // Address of the Chador server. Override without editing files:  ./gradlew assembleRelease -PapiBaseUrl=https://chador.example.ir/
-        val api = (project.findProperty("apiBaseUrl") as String?) ?: "https://chador.example.ir/"
+        // Address of the Chador server. Override without editing files:  ./gradlew assembleRelease -PapiBaseUrl=https://other.example.ir/
+        val api = (project.findProperty("apiBaseUrl") as String?) ?: "https://shch.badr-group.ir/"
         buildConfigField("String", "API_BASE_URL", "\"${api.trimEnd('/')}/\"")
     }
 
     buildTypes {
         debug {
-            // Android emulator -> the developer machine's backend (see src/debug network security config)
-            val dbg = (project.findProperty("apiBaseUrlDebug") as String?) ?: "http://10.0.2.2:8080/"
+            // Defaults to the production server; for a local backend from the emulator use -PapiBaseUrlDebug=http://10.0.2.2:8080/
+            val dbg = (project.findProperty("apiBaseUrlDebug") as String?) ?: "https://shch.badr-group.ir/"
             buildConfigField("String", "API_BASE_URL", "\"${dbg.trimEnd('/')}/\"")
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
         }
         release {
+            // ML Kit's barcode library ships ~5 MB of native code per CPU; x86 is emulator-only.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

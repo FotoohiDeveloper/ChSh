@@ -93,8 +93,10 @@ data class PilgrimView(
     @SerialName("mobile_masked") val mobileMasked: String = "",
     @SerialName("active_tents") val activeTents: List<String> = emptyList(),
     val existing: Boolean = false,
+    /** Server says tents may be handed out (verified, or unverified while the pilot mode allows it). */
+    val usable: Boolean? = null,
 ) {
-    val verified: Boolean get() = verification == "verified"
+    val verified: Boolean get() = usable ?: (verification == "verified")
 }
 
 @Serializable

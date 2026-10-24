@@ -25,6 +25,18 @@ type PilgrimView struct {
 	Mobile       string    `json:"mobile_masked"`
 	ActiveTents  []string  `json:"active_tents"`
 	Existing     bool      `json:"existing"`
+	// Usable: tents may be handed out to this pilgrim (verified, or unverified while ALLOW_UNVERIFIED=true).
+	Usable bool `json:"usable"`
+}
+
+// finish fills Usable and, for an unverified pilgrim without a name, a temporary display name
+// derived from the last digits of the national ID (not stored).
+func (s *Service) finish(v *PilgrimView, nid string) *PilgrimView {
+	v.Usable = v.Verification == "verified" || (v.Verification != "failed" && s.cfg.AllowUnverified)
+	if v.FullName == "" && v.Verification != "verified" && len(nid) >= 4 {
+		v.FullName = "زائر موقت " + nid[len(nid)-4:]
+	}
+	return v
 }
 
 type pilgrimRow struct {
@@ -107,8 +119,8 @@ func (s *Service) UpsertPilgrim(ctx context.Context, a Actor, in PilgrimInput) (
 		_ = s.q.VerifyPilgrim(ctx, id, 30*time.Second)
 	}
 	s.Audit(a, "pilgrim.create", "pilgrim", id.String(), map[string]any{"verification": state})
-	return &PilgrimView{ID: id, Verification: state, FullName: res.FullName,
-		NationalID: domain.MaskNationalID(nid), Mobile: domain.MaskMobile(mobile), ActiveTents: []string{}}, nil
+	return s.finish(&PilgrimView{ID: id, Verification: state, FullName: res.FullName,
+		NationalID: domain.MaskNationalID(nid), Mobile: domain.MaskMobile(mobile), ActiveTents: []string{}}, nid), nil
 }
 
 func (s *Service) refreshExisting(ctx context.Context, a Actor, row pilgrimRow, nid, mobile string, mobileIdx []byte, birth time.Time) (*PilgrimView, error) {
@@ -136,6 +148,7 @@ func (s *Service) refreshExisting(ctx context.Context, a Actor, row pilgrimRow, 
 		return nil, err
 	}
 	v.ActiveTents = tents
+	s.finish(v, nid)
 	s.Audit(a, "pilgrim.view", "pilgrim", row.id.String(), nil)
 	return v, nil
 }
@@ -231,6 +244,7 @@ func (s *Service) viewOf(ctx context.Context, a Actor, row pilgrimRow) (*Pilgrim
 		return nil, err
 	}
 	v.ActiveTents = tents
+	s.finish(v, nid)
 	s.Audit(a, "pilgrim.view", "pilgrim", row.id.String(), nil)
 	return v, nil
 }

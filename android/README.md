@@ -14,11 +14,11 @@ android/
 
 1. Open the `android/` folder (Android Studio Ladybug 2024.2+ / JDK 17; the Gradle wrapper downloads Gradle 8.9).
 2. Set the server address. Release builds read `-PapiBaseUrl`, debug builds `-PapiBaseUrlDebug`
-   (default `http://10.0.2.2:8080/` = the backend on your computer, seen from the emulator).
+   (both default to `https://shch.badr-group.ir/`; use `http://10.0.2.2:8080/` for a backend on your computer, seen from the emulator).
    Put them in `~/.gradle/gradle.properties`:
    ```
-   apiBaseUrl=https://chador.your-domain.ir/
-   apiBaseUrlDebug=http://10.0.2.2:8080/
+   apiBaseUrl=https://shch.badr-group.ir/
+   apiBaseUrlDebug=https://shch.badr-group.ir/
    ```
    Cleartext HTTP is allowed **only** in debug builds and only for `10.0.2.2`/`localhost`.
 3. Run `app` on a device. Release: Build ▸ Generate Signed Bundle/APK (keystores are git-ignored).

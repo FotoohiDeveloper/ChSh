@@ -79,11 +79,18 @@ mkdir -p pwa
 ./init-secrets.sh
 [ -n "${INQUIRY_TOKEN:-}" ] && printf '%s' "$INQUIRY_TOKEN" > secrets/inquiry_token
 [ -n "${SMS_TOKEN:-}" ] && printf '%s' "$SMS_TOKEN" > secrets/sms_token
-if [ -z "${INQUIRY_URL:-}" ] || [ -z "${INQUIRY_TOKEN:-}" ]; then
-  warn "identity-inquiry vendor not configured: hand-outs will fail identity checks until INQUIRY_URL/INQUIRY_TOKEN are set in .env and secrets/."
+if [ -n "${INQUIRY_URL:-}" ] && [ -n "${INQUIRY_TOKEN:-}" ]; then
+  setenv INQUIRY_MODE http
+else
+  setenv INQUIRY_MODE off; setenv ALLOW_UNVERIFIED true
+  warn "no identity-inquiry vendor given: running with INQUIRY_MODE=off, national IDs are NOT verified (pilot mode)."
+  warn "when the vendor is ready: set INQUIRY_MODE=http, INQUIRY_URL, ALLOW_UNVERIFIED=false in .env, put the token in secrets/inquiry_token, docker compose up -d."
 fi
-if [ -z "${SMS_URL:-}" ] || [ -z "${SMS_TOKEN:-}" ]; then
-  warn "SMS vendor not configured: reminder SMS will not be sent."
+if [ -n "${SMS_URL:-}" ] && [ -n "${SMS_TOKEN:-}" ]; then
+  setenv SMS_MODE http
+else
+  setenv SMS_MODE off
+  warn "no SMS vendor given: SMS_MODE=off, reminder SMS will not be sent."
 fi
 
 say "6/7 build and start (first build takes a few minutes)"

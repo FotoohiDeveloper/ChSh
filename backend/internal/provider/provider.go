@@ -38,6 +38,15 @@ func (MockInquirer) Verify(_ context.Context, nid string, _ time.Time, _ string)
 	return InquiryResult{Verified: domain.ValidNationalID(nid)}, nil
 }
 
+// OffInquirer is used when no inquiry vendor is contracted yet (INQUIRY_MODE=off). Every lookup reports
+// "service unavailable", so pilgrims are stored as unverified and can be handed tents only when
+// ALLOW_UNVERIFIED=true. Identity is NOT checked in this mode.
+type OffInquirer struct{}
+
+func (OffInquirer) Verify(context.Context, string, time.Time, string) (InquiryResult, error) {
+	return InquiryResult{}, errors.New("identity inquiry is switched off (INQUIRY_MODE=off)")
+}
+
 // HTTPInquirer is a generic JSON client. The exact request/response contract
 // depends on the vendor that is contracted; adjust the two structs below.
 type HTTPInquirer struct {
@@ -93,6 +102,14 @@ type MockSMS struct{ Log *slog.Logger }
 func (m MockSMS) Send(_ context.Context, mobile, text string) (string, error) {
 	m.Log.Info("sms (mock)", "to", domain.MaskMobile(mobile), "chars", len([]rune(text)))
 	return "mock", nil
+}
+
+// NoopSMS is used when no SMS vendor is contracted yet (SMS_MODE=off): nothing is sent.
+type NoopSMS struct{ Log *slog.Logger }
+
+func (n NoopSMS) Send(_ context.Context, mobile, _ string) (string, error) {
+	n.Log.Info("sms skipped (SMS_MODE=off)", "to", domain.MaskMobile(mobile))
+	return "off", nil
 }
 
 type HTTPSMS struct {

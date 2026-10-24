@@ -115,6 +115,9 @@ func bootstrap(ctx context.Context, log *slog.Logger, needVendors bool) (*app, e
 		}
 		inq = &provider.HTTPInquirer{URL: cfg.InquiryURL, Token: cfg.InquiryToken, Client: &http.Client{Timeout: 5 * time.Second}}
 	}
+	if cfg.InquiryMode == "off" {
+		inq = provider.OffInquirer{}
+	}
 	inq = provider.GuardInquirer(inq, 4*time.Second)
 
 	var sms provider.SMSSender = provider.MockSMS{Log: log}
@@ -123,6 +126,9 @@ func bootstrap(ctx context.Context, log *slog.Logger, needVendors bool) (*app, e
 			return nil, errors.New("SMS_URL and SMS_TOKEN are required when SMS_MODE=http")
 		}
 		sms = &provider.HTTPSMS{URL: cfg.SMSURL, Token: cfg.SMSToken, Client: &http.Client{Timeout: 10 * time.Second}}
+	}
+	if cfg.SMSMode == "off" {
+		sms = provider.NoopSMS{Log: log}
 	}
 	jc, err := jobs.NewClient(cfg.RedisURL)
 	if err != nil {

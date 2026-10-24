@@ -160,6 +160,11 @@ func LoadConfig() (Config, error) {
 	if c.Location, err = time.LoadLocation(env("APP_TZ", "Asia/Tehran")); err != nil {
 		return c, err
 	}
+	for _, m := range []string{c.InquiryMode, c.SMSMode} {
+		if m != "mock" && m != "http" && m != "off" {
+			return c, errors.New("INQUIRY_MODE / SMS_MODE must be mock, http or off")
+		}
+	}
 	if c.IsProd() && (c.InquiryMode == "mock" || c.SMSMode == "mock") {
 		return c, errors.New("mock inquiry/SMS providers are not allowed when APP_ENV=prod")
 	}

@@ -2,6 +2,12 @@
 	email {$ACME_EMAIL}
 	# Caddy is the only component that talks to the internet. It rewrites
 	# X-Forwarded-For with the real client address, so the API can trust it.
+	# When another proxy (nginx / CDN) sits in front, it is trusted only from
+	# private addresses and passes the client address in X-Real-IP.
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers X-Real-IP X-Forwarded-For
+	}
 }
 
 {$SITE_ADDRESS} {
@@ -27,7 +33,7 @@
 		# respond @admin_outside 403
 
 		reverse_proxy api:8080 {
-			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-For {client_ip}
 			flush_interval -1 # server-sent events must not be buffered
 			transport http {
 				response_header_timeout 15s

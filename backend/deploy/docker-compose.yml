@@ -57,7 +57,9 @@ services:
     <<: *hardened
     image: ${CADDY_IMAGE:-caddy:2-alpine}
     cap_add: ["NET_BIND_SERVICE"]
-    ports: ["80:80", "443:443"]
+    # Behind another reverse proxy (nginx/CDN terminating TLS) set e.g.
+    # HTTP_PUBLISH=127.0.0.1:3200 and SITE_ADDRESS=http://your.domain
+    ports: ["${HTTP_PUBLISH:-80}:80", "${HTTPS_PUBLISH:-443}:443"]
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
       ACME_EMAIL: ${ACME_EMAIL:-}
@@ -87,6 +89,7 @@ services:
   worker:
     <<: *app
     command: ["worker"]
+    healthcheck: { disable: true } # the image healthcheck probes the API port, which the worker does not serve
     networks: [data, egress]
     depends_on:
       migrate: { condition: service_completed_successfully }
